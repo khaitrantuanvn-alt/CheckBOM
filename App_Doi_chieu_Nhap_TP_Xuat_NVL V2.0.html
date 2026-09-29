@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đối chiếu Nhập TP – Xuất NVL – Reconcile ĐM BOM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+ --navy:#0e2744;--navy2:#123259;--pri:#2563eb;--pri-d:#1d4ed8;--accent:#fb923c;--accent-d:#ea7c1e;
+ --bg:#eef2f8;--card:#ffffff;--tx:#16202c;--mut:#64748b;--bd:#e0e6ee;--hd:#eaf1fc;
+ --ok:#0f9d64;--ok-bg:#e8f8f1;--wr:#dc2626;--wr-bg:#fdeceb;--wa:#ea7c1e;--wa-bg:#fff2e4}
+@media(prefers-color-scheme:dark){:root{
+ --navy:#0a1c33;--navy2:#0f2440;--pri:#5b9dff;--pri-d:#3f7fe0;--accent:#fb923c;--accent-d:#f0770f;
+ --bg:#0f151d;--card:#182230;--tx:#e7edf5;--mut:#93a3b5;--bd:#28313f;--hd:#1c2938;
+ --ok:#3ecf8e;--ok-bg:#0f2a22;--wr:#f0665c;--wr-bg:#301616;--wa:#f5a45c;--wa-bg:#332210}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:16px 24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-bottom:3px solid var(--accent)}
+header h1{font-size:18px;margin:0;color:#fff}header small{color:#b7c6da}
+main{padding:16px 24px;max-width:1440px;margin:auto}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:600;transition:.15s}
+.btn:hover{background:var(--pri-d)}
+.btn.sec{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}
+.btn.sec:hover{background:rgba(255,255,255,.12)}
+.btn.acc{background:var(--accent)}.btn.acc:hover{background:var(--accent-d)}
+.drop{border:2px dashed var(--bd);border-radius:14px;padding:44px;text-align:center;color:var(--mut);background:var(--card)}
+.drop.on{border-color:var(--pri);background:var(--hd)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--pri);border-radius:10px;padding:12px 14px}
+.kpi.acc{border-left-color:var(--accent)}.kpi.wr{border-left-color:var(--wr)}.kpi.ok{border-left-color:var(--ok)}
+.kpi b{display:block;font-size:22px}.kpi span{color:var(--mut);font-size:12px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:14px}
+.filters label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+.filters input,.filters select{padding:7px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);min-width:120px}
+.tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
+.tab{padding:9px 16px;border-radius:8px 8px 0 0;border:1px solid var(--bd);background:var(--card);cursor:pointer;color:var(--mut);font-weight:600}
+.tab.on{color:var(--pri-d);border-bottom-color:var(--card);box-shadow:0 -2px 0 var(--pri) inset}
+.wrap{background:var(--card);border:1px solid var(--bd);border-radius:0 10px 10px 10px;overflow:auto;max-height:64vh}
+table{border-collapse:collapse;width:100%}
+th,td{padding:7px 10px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--hd);z-index:1;color:var(--navy2)}
+@media(prefers-color-scheme:dark){th{color:#cfe0f5}}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.p{cursor:pointer}tr.p:hover{background:var(--hd)}
+tr.sub td{background:var(--bg);font-size:13px}
+.badge{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.b-ok{background:var(--ok-bg);color:var(--ok)}.b-wr{background:var(--wr-bg);color:var(--wr)}.b-wa{background:var(--wa-bg);color:var(--wa)}.b-mut{background:var(--hd);color:var(--mut)}
+.empty{padding:34px;text-align:center;color:var(--mut)}
+.pill{display:inline-block;background:var(--hd);color:var(--navy2);border-radius:99px;padding:2px 10px;font-size:12px;margin-left:8px}
+@media(prefers-color-scheme:dark){.pill{color:#cfe0f5}}
+</style></head><body>
+<header><div><h1>📊 Đối chiếu Nhập TP – Xuất NVL <span class="pill" id="bomState" style="display:none">Reconcile ĐM BOM</span></h1><small>Ghép theo Số phiếu + Mã thành phẩm giữa Nhapkho / Xuatkho, đối chiếu định mức Tbl_BOM</small></div>
+<div><input type="file" id="f" accept=".xlsx,.xlsm,.xls" hidden><button class="btn acc" onclick="f.click()">📂 Chọn file Excel</button>
+<button class="btn sec" id="ex" onclick="exportX()" style="display:none">⬇ Xuất Excel</button></div></header>
+<main>
+<div class="drop" id="drop">Kéo thả file <b>.xlsx</b> vào đây<br><small>Cần sheet <b>Nhapkho</b>, <b>Xuatkho</b>. Có thêm sheet <b>BOM</b> (bảng Tbl_BOM) để bật Reconcile định mức.</small><br><small id="msg" style="color:var(--wr)"></small></div>
+<div id="app" style="display:none">
+<div class="kpis" id="kpis"></div>
+<div class="filters">
+<label>Từ ngày<input type="date" id="d1"></label><label>Đến ngày<input type="date" id="d2"></label>
+<label>Số phiếu<input id="fp" placeholder="PS2609..."></label>
+<label>Mã / tên thành phẩm<input id="ft" placeholder="4300002"></label>
+<label>Mã / tên NVL<input id="fn" placeholder="1520013"></label>
+<label>CĐ<select id="fc"><option value="">Tất cả</option></select></label>
+<label>Ngưỡng cảnh báo %<input type="number" id="th" value="5" min="0" step="1" style="min-width:70px"></label>
+<button class="btn sec" style="color:var(--pri-d);border-color:var(--pri)" onclick="resetF()">Xóa lọc</button></div>
+<div class="tabs" id="tabs"></div><div class="wrap" id="out"></div>
+</div></main>
+<script>
+const $=id=>document.getElementById(id);
+const N=v=>v==null||v===''||isNaN(v)?'':(+v).toLocaleString('vi-VN',{maximumFractionDigits:3});
+const P=v=>v==null||v===''||!isFinite(v)?'':(v>0?'+':'')+v.toLocaleString('vi-VN',{maximumFractionDigits:1})+'%';
+const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=s=>String(s??'').toLowerCase().replace(/\s+/g,' ').trim();
+let NH=[],XU=[],BOM=null,MATCH=[],UN_N=[],UN_X=[],tab='tp',open=new Set();
+const TABS=()=>{const t=[['tp','Theo thành phẩm'],['ph','Theo phiếu'],['ct','Chi tiết NVL'],['kk','Không khớp']];if(BOM)t.push(['rc','⚖ Reconcile ĐM']);return t};
+
+function dstr(v){if(v instanceof Date&&!isNaN(v)){const d=new Date(v.getTime()+6*36e5);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+ if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}/.test(v))return v.slice(0,10);return ''}
+const vd=s=>s?s.split('-').reverse().join('/'):'';
+function findSheet(wb,name){return wb.SheetNames.find(n=>norm(n)===name)}
+function sheetRows(wb,name,test){const k=findSheet(wb,name);if(!k)throw new Error('Không tìm thấy sheet "'+name+'"');
+ const rows=XLSX.utils.sheet_to_json(wb.Sheets[k],{header:1,raw:true,defval:null});
+ let h=rows.findIndex((r,i)=>i<20&&test(r.map(norm)));if(h<0)throw new Error('Sheet '+name+': không thấy dòng tiêu đề phù hợp');
+ return{rows:rows.slice(h+1),hd:rows[h].map(norm)}}
+const col=(hd,test,fb)=>{const i=hd.findIndex(test);return i>=0?i:fb};
+
+function load(file){
+ const rd=new FileReader();rd.onload=e=>{try{
+  const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+  let {rows,hd}=sheetRows(wb,'nhapkho',h=>h.some(x=>x==='số phiếu'));
+  const a={ng:col(hd,x=>x==='ngày',1),ph:col(hd,x=>x==='số phiếu',2),tp:col(hd,x=>x.startsWith('mã thành phẩm'),4),ten:col(hd,x=>x.startsWith('tên thành phẩm'),5),cd:col(hd,x=>x==='cđ',6),dvt:col(hd,x=>x==='đvt',7),sl:col(hd,x=>x.startsWith('sl nhập'),9)};
+  NH=rows.filter(r=>r[a.ph]&&r[a.tp]).map(r=>({ng:dstr(r[a.ng]),ph:String(r[a.ph]).trim(),tp:String(r[a.tp]).trim(),ten:r[a.ten]||'',cd:r[a.cd]||'',dvt:r[a.dvt]||'',sl:+r[a.sl]||0}));
+  ({rows,hd}=sheetRows(wb,'xuatkho',h=>h.some(x=>x==='số phiếu')));
+  const b={ng:col(hd,x=>x==='ngày',1),ph:col(hd,x=>x==='số phiếu',2),cd:col(hd,x=>x==='cđ',3),tp:col(hd,x=>x.startsWith('mã thành phẩm'),5),nvl:col(hd,x=>x==='mã nvl',6),ten:col(hd,x=>x==='tên nvl',7),dvt:col(hd,x=>x==='đvt',8),sl:col(hd,x=>x.startsWith('sl xuất'),10)};
+  XU=rows.filter(r=>r[b.ph]&&r[b.tp]).map(r=>({ng:dstr(r[b.ng]),ph:String(r[b.ph]).trim(),cd:r[b.cd]||'',tp:String(r[b.tp]).trim(),nvl:String(r[b.nvl]??'').trim(),ten:r[b.ten]||'',dvt:r[b.dvt]||'',sl:+r[b.sl]||0}));
+  BOM=null;
+  const bk=findSheet(wb,'bom');
+  if(bk){try{
+   const bres=sheetRows(wb,'bom',h=>h.some(x=>x.startsWith('mã sản phẩm'))&&h.some(x=>x==='mã vật tư'));
+   const bh=bres.hd,c={tp:col(bh,x=>x.startsWith('mã sản phẩm'),0),ten:col(bh,x=>x.startsWith('tên sản phẩm'),1),ver:col(bh,x=>x.startsWith('ver'),3),
+    nvl:col(bh,x=>x==='mã vật tư',5),tennvl:col(bh,x=>x==='tên vật tư',6),dvt:col(bh,x=>x==='đvt2',7),sl:col(bh,x=>x==='số lượng',8),
+    hh:col(bh,x=>x.startsWith('tỷ lệ hao'),9),slsp:col(bh,x=>x.startsWith('số lượng sản phẩm'),10),tc:col(bh,x=>x.startsWith('tc sl'),11),sp1:col(bh,x=>x==='1sp',12)};
+   const map=new Map();
+   bres.rows.forEach(r=>{if(!r[c.tp]||!r[c.nvl])return;const tp=String(r[c.tp]).trim(),nvl=String(r[c.nvl]).trim(),k=tp+'|'+nvl;
+    const slsp=+r[c.slsp]||0,tcv=r[c.tc]!=null?+r[c.tc]:((+r[c.sl]||0)+(+r[c.sl]||0)*(+r[c.hh]||0));
+    const sp1=r[c.sp1]!=null?+r[c.sp1]:(slsp?tcv/slsp:0),ver=+r[c.ver]||0;
+    const cur=map.get(k);if(!cur||ver>=cur.ver)map.set(k,{tp,ten:r[c.ten]||'',nvl,tennvl:r[c.tennvl]||'',dvt:r[c.dvt]||'',sl:+r[c.sl]||0,hh:+r[c.hh]||0,slsp,tc:tcv,sp1,ver})});
+   BOM={map,byTp:new Map()};
+   [...map.values()].forEach(v=>{if(!BOM.byTp.has(v.tp))BOM.byTp.set(v.tp,[]);BOM.byTp.get(v.tp).push(v)});
+  }catch(err){BOM=null}}
+  build();$('drop').style.display='none';$('app').style.display='';$('ex').style.display='';
+  $('bomState').style.display=BOM?'':'none';
+  if(tab==='rc'&&!BOM)tab='tp';
+ }catch(err){$('msg').textContent='⚠ '+err.message}};
+ rd.readAsArrayBuffer(file)}
+
+function build(){
+ const m=new Map();const key=(p,t)=>p+'|'+t;
+ NH.forEach(r=>{const k=key(r.ph,r.tp);if(!m.has(k))m.set(k,{ph:r.ph,tp:r.tp,ten:r.ten,ng:r.ng,cd:r.cd,dvt:r.dvt,sl:0,x:[]});m.get(k).sl+=r.sl});
+ UN_X=[];XU.forEach(r=>{const g=m.get(key(r.ph,r.tp));g?g.x.push(r):UN_X.push(r)});
+ const all=[...m.values()];MATCH=all.filter(g=>g.x.length);UN_N=all.filter(g=>!g.x.length);
+ const cds=[...new Set(NH.map(r=>r.cd).concat(XU.map(r=>r.cd)).filter(Boolean))].sort();
+ $('fc').innerHTML='<option value="">Tất cả</option>'+cds.map(c=>`<option>${E(c)}</option>`).join('');
+ $('tabs').innerHTML=TABS().map(([k,t])=>`<div class="tab" data-k="${k}">${t}</div>`).join('');
+ $('tabs').onclick=e=>{if(e.target.dataset.k){tab=e.target.dataset.k;render()}};
+ ['d1','d2','fp','ft','fn','fc','th'].forEach(i=>$(i).oninput=render);render()}
+
+function filtered(){
+ const d1=$('d1').value,d2=$('d2').value,fp=norm($('fp').value),ft=norm($('ft').value),fn=norm($('fn').value),fc=$('fc').value;
+ const okG=g=>(!d1||g.ng>=d1)&&(!d2||g.ng<=d2)&&(!fp||norm(g.ph).includes(fp))&&(!ft||norm(g.tp+' '+g.ten).includes(ft))&&(!fc||g.cd===fc);
+ const okX=x=>!fn||norm(x.nvl+' '+x.ten).includes(fn);
+ const ok=[];MATCH.forEach(g=>{if(!okG(g))return;const x=g.x.filter(okX);if(x.length)ok.push({...g,x})});
+ return{ok,un:UN_N.filter(okG),ux:UN_X.filter(x=>(!fp||norm(x.ph).includes(fp))&&(!ft||norm(x.tp).includes(ft))&&okX(x)&&(!fc||x.cd===fc)&&(!d1||x.ng>=d1)&&(!d2||x.ng<=d2))}}
+
+function nvlAgg(list){const m=new Map();list.forEach(g=>g.x.forEach(x=>{const k=x.nvl+'|'+x.dvt;if(!m.has(k))m.set(k,{nvl:x.nvl,ten:x.ten,dvt:x.dvt,sl:0});m.get(k).sl+=x.sl}));return[...m.values()].sort((a,b)=>a.nvl.localeCompare(b.nvl))}
+const nvlRows=(l,base)=>l.map(n=>`<tr class="sub"><td></td><td>${E(n.nvl)}</td><td>${E(n.ten)}</td><td>${E(n.dvt)}</td><td class="n">${N(n.sl)}</td><td class="n">${base?N(n.sl/base):''}</td></tr>`).join('');
+const subHead='<tr class="sub"><td></td><td><b>Mã NVL</b></td><td><b>Tên NVL</b></td><td><b>ĐVT</b></td><td class="n"><b>SL xuất</b></td><td class="n"><b>Xuất / 1 đv TP</b></td></tr>';
+
+function reconcile(ok){
+ const byTp=new Map();
+ ok.forEach(g=>{if(!byTp.has(g.tp))byTp.set(g.tp,{tp:g.tp,ten:g.ten,nhap:0,x:new Map()});const t=byTp.get(g.tp);t.nhap+=g.sl;
+  g.x.forEach(x=>{const k=x.nvl;if(!t.x.has(k))t.x.set(k,{nvl:x.nvl,ten:x.ten,dvt:x.dvt,sl:0});t.x.get(k).sl+=x.sl})});
+ const rows=[];
+ byTp.forEach(t=>{
+  const bomList=BOM.byTp.get(t.tp)||[];
+  const keys=new Set([...t.x.keys(),...bomList.map(b=>b.nvl)]);
+  keys.forEach(nvl=>{const act=t.x.get(nvl);const bm=BOM.map.get(t.tp+'|'+nvl);
+   const actual=act?act.sl:0,dm=bm?bm.sp1*t.nhap:null;
+   const cl=dm==null?null:actual-dm,pct=dm==null?null:(dm!==0?cl/dm*100:(actual!==0?100:0));
+   rows.push({tp:t.tp,ten:t.ten,nhap:t.nhap,nvl,tennvl:(act&&act.ten)||(bm&&bm.tennvl)||'',dvt:(act&&act.dvt)||(bm&&bm.dvt)||'',dm1:bm?bm.sp1:null,dm,actual,cl,pct,noDm:!bm,noActual:!act})});
+ });
+ return rows.sort((a,b)=>a.tp.localeCompare(b.tp)||(Math.abs(b.pct||0)-Math.abs(a.pct||0)));
+}
+
+function render(){
+ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.k===tab));
+ const{ok,un,ux}=filtered();
+ const tps=new Set(ok.map(g=>g.tp)),phs=new Set(ok.map(g=>g.ph));
+ const totalN=ok.reduce((s,g)=>s+g.sl,0),nv=new Set(ok.flatMap(g=>g.x.map(x=>x.nvl)));
+ let kp=[[phs.size,'Số phiếu khớp',''],[tps.size,'Mã thành phẩm',''],[N(totalN),'Tổng SL nhập TP','acc'],[nv.size,'Mã NVL tiêu hao',''],
+ [`<span class="badge ${un.length?'b-wr':'b-ok'}">${un.length}</span>/<span class="badge ${ux.length?'b-wr':'b-ok'}">${ux.length}</span>`,'Không khớp (N/X)','']];
+ let h='';
+ const th=Math.abs(+$('th').value||0);
+ if(tab==='tp'){const m=new Map();ok.forEach(g=>{if(!m.has(g.tp))m.set(g.tp,{tp:g.tp,ten:g.ten,dvt:g.dvt,sl:0,ph:new Set(),gs:[]});const t=m.get(g.tp);t.sl+=g.sl;t.ph.add(g.ph);t.gs.push(g)});
+  h='<table><tr><th></th><th>Mã TP</th><th>Tên thành phẩm</th><th>ĐVT</th><th class="n">Số phiếu</th><th class="n">SL nhập TP</th><th class="n">Số NVL</th></tr>';
+  [...m.values()].sort((a,b)=>a.tp.localeCompare(b.tp)).forEach(t=>{const o=open.has('t'+t.tp),l=nvlAgg(t.gs);
+   h+=`<tr class="p" data-o="t${E(t.tp)}"><td>${o?'▼':'▶'}</td><td>${E(t.tp)}</td><td>${E(t.ten)}</td><td>${E(t.dvt)}</td><td class="n">${t.ph.size}</td><td class="n"><b>${N(t.sl)}</b></td><td class="n">${l.length}</td></tr>`;
+   if(o)h+=subHead+nvlRows(l,t.sl)});h+='</table>'}
+ else if(tab==='ph'){h='<table><tr><th></th><th>Ngày</th><th>Số phiếu</th><th>CĐ</th><th>Mã TP</th><th>Tên thành phẩm</th><th class="n">SL nhập TP</th><th class="n">Dòng NVL</th></tr>';
+  ok.sort((a,b)=>b.ng.localeCompare(a.ng)||a.ph.localeCompare(b.ph)).forEach(g=>{const k='p'+g.ph+'|'+g.tp,o=open.has(k);
+   h+=`<tr class="p" data-o="${E(k)}"><td>${o?'▼':'▶'}</td><td>${vd(g.ng)}</td><td>${E(g.ph)}</td><td>${E(g.cd)}</td><td>${E(g.tp)}</td><td>${E(g.ten)}</td><td class="n"><b>${N(g.sl)}</b></td><td class="n">${g.x.length}</td></tr>`;
+   if(o)h+=subHead+nvlRows(nvlAgg([g]),g.sl)});h+='</table>'}
+ else if(tab==='ct'){h='<table><tr><th>Ngày</th><th>Số phiếu</th><th>Mã TP</th><th class="n">SL nhập TP</th><th>Mã NVL</th><th>Tên NVL</th><th>ĐVT</th><th class="n">SL xuất NVL</th></tr>';
+  ok.forEach(g=>g.x.forEach(x=>h+=`<tr><td>${vd(g.ng)}</td><td>${E(g.ph)}</td><td>${E(g.tp)}</td><td class="n">${N(g.sl)}</td><td>${E(x.nvl)}</td><td>${E(x.ten)}</td><td>${E(x.dvt)}</td><td class="n">${N(x.sl)}</td></tr>`));h+='</table>'}
+ else if(tab==='kk'){h='<table><tr><th>Loại</th><th>Ngày</th><th>Số phiếu</th><th>Mã TP</th><th>Chi tiết</th><th class="n">Số lượng</th></tr>';
+  un.forEach(g=>h+=`<tr><td class="badge b-wr">Nhập không có xuất NVL</td><td>${vd(g.ng)}</td><td>${E(g.ph)}</td><td>${E(g.tp)}</td><td>${E(g.ten)}</td><td class="n">${N(g.sl)}</td></tr>`);
+  ux.forEach(x=>h+=`<tr><td class="badge b-wr">Xuất NVL không có nhập TP</td><td>${vd(x.ng)}</td><td>${E(x.ph)}</td><td>${E(x.tp)}</td><td>${E(x.nvl+' – '+x.ten)}</td><td class="n">${N(x.sl)}</td></tr>`);
+  h+='</table>';if(!un.length&&!ux.length)h='<div class="empty">✓ Tất cả phiếu đều khớp</div>'}
+ else if(tab==='rc'&&BOM){
+  const rc=reconcile(ok),over=rc.filter(r=>r.pct!=null&&Math.abs(r.pct)>th),noDm=rc.filter(r=>r.noDm).length;
+  kp=[[tps.size,'Mã thành phẩm',''],[rc.length,'Dòng đối chiếu ĐM',''],[`<span class="badge ${over.length?'b-wr':'b-ok'}">${over.length}</span>`,`Vượt ngưỡng ±${th}%`,'wr'],[noDm,'NVL chưa có định mức','acc']];
+  h='<table><tr><th>Mã TP</th><th>Tên TP</th><th class="n">SL nhập TT</th><th>Mã NVL</th><th>Tên NVL</th><th>ĐVT</th><th class="n">ĐM 1SP</th><th class="n">SL theo ĐM</th><th class="n">SL thực tế</th><th class="n">Chênh lệch</th><th class="n">% CL</th><th>Trạng thái</th></tr>';
+  rc.forEach(r=>{let badge;
+   if(r.noDm)badge='<span class="badge b-mut">Chưa có ĐM</span>';
+   else if(r.noActual)badge='<span class="badge b-wa">Có ĐM, chưa xuất</span>';
+   else if(Math.abs(r.pct)>th)badge=`<span class="badge ${r.cl>0?'b-wr':'b-wa'}">${r.cl>0?'Vượt ĐM':'Thấp hơn ĐM'}</span>`;
+   else badge='<span class="badge b-ok">Đạt ĐM</span>';
+   h+=`<tr><td>${E(r.tp)}</td><td>${E(r.ten)}</td><td class="n">${N(r.nhap)}</td><td>${E(r.nvl)}</td><td>${E(r.tennvl)}</td><td>${E(r.dvt)}</td>
+   <td class="n">${r.dm1!=null?N(r.dm1):''}</td><td class="n">${r.dm!=null?N(r.dm):'<span class="badge b-mut">—</span>'}</td><td class="n">${N(r.actual)}</td>
+   <td class="n">${r.cl!=null?N(r.cl):''}</td><td class="n">${r.pct!=null?P(r.pct):''}</td><td>${badge}</td></tr>`});
+  h+='</table>';if(!rc.length)h='<div class="empty">Không có dữ liệu để đối chiếu</div>'}
+ $('kpis').innerHTML=kp.map(([v,l,c])=>`<div class="kpi ${c||''}"><b>${v}</b><span>${l}</span></div>`).join('');
+ $('out').innerHTML=ok.length||['kk','rc'].includes(tab)?h:'<div class="empty">Không có dữ liệu theo bộ lọc</div>';
+ $('out').querySelectorAll('tr.p').forEach(r=>r.onclick=()=>{const k=r.dataset.o;open.has(k)?open.delete(k):open.add(k);render()})}
+
+function resetF(){['d1','d2','fp','ft','fn','fc'].forEach(i=>$(i).value='');$('th').value=5;render()}
+function exportX(){const{ok}=filtered(),wb=XLSX.utils.book_new();
+ const rows=[];ok.forEach(g=>g.x.forEach(x=>rows.push({'Ngày':vd(g.ng),'Số phiếu':g.ph,'CĐ':g.cd,'Mã TP':g.tp,'Tên TP':g.ten,'SL nhập TP':g.sl,'Mã NVL':x.nvl,'Tên NVL':x.ten,'ĐVT':x.dvt,'SL xuất NVL':x.sl,'Xuất/1 đv TP':g.sl?x.sl/g.sl:''})));
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'DoiChieu');
+ if(BOM){const th=Math.abs(+$('th').value||0),rc=reconcile(ok).map(r=>({'Mã TP':r.tp,'Tên TP':r.ten,'SL nhập TT':r.nhap,'Mã NVL':r.nvl,'Tên NVL':r.tennvl,'ĐVT':r.dvt,'ĐM 1SP':r.dm1,'SL theo ĐM':r.dm,'SL thực tế':r.actual,'Chênh lệch':r.cl,'% CL':r.pct,'Vượt ngưỡng':r.pct!=null&&Math.abs(r.pct)>th?'Có':''}));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rc),'Reconcile_DM')}
+ XLSX.writeFile(wb,'Doi_chieu_Nhap_TP_Xuat_NVL.xlsx')}
+
+f.onchange=e=>e.target.files[0]&&load(e.target.files[0]);
+const dz=$('drop');['dragover','dragenter'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('on')}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('on')}));
+dz.addEventListener('drop',e=>e.dataTransfer.files[0]&&load(e.dataTransfer.files[0]));
+</script></body></html>
